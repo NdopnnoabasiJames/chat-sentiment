@@ -6,7 +6,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  const docsPath = 'docs';
+  const docsPath = process.env.SWAGGER_DOCS_PATH ?? 'docs';
 
   const config = new DocumentBuilder()
     .setTitle('Chat Sentiment API')
