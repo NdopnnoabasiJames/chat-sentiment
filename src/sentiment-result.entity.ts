@@ -6,13 +6,19 @@ export class SentimentResult {
   id: number;
 
   @Column()
+  agentId: string;
+
+  @Column()
+  conversationId: string;
+
+  @Column()
   sentiment: string;
 
   @Column('float')
   confidence: number;
 
-  @Column({ type: 'json' })
-  messages: unknown;
+  @Column({ type: 'jsonb' })
+  messages: any;
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;

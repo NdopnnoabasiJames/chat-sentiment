@@ -10,10 +10,15 @@ type ConversationMessage = {
   text: string;
 };
 
-type SentimentApiResponse = {
-  label: string;
-  confidence: number;
-};
+interface SentimentApiResponse {
+  overall_sentiment: string;
+  score: number;
+  messages: {
+    text: string;
+    label: string;
+    confidence: number;
+  }[];
+}
 
 @Injectable()
 export class AppService {
@@ -24,6 +29,8 @@ export class AppService {
   ) {}
 
   async analyzeConversation(
+    agentId: string,
+    conversationId: string,
     messages: ConversationMessage[],
   ): Promise<SentimentResult> {
     try {
@@ -35,28 +42,40 @@ export class AppService {
       const response = await axios.post<SentimentApiResponse>(
         fastApiPredictUrl,
         {
+          agentId,
+          conversationId,
           messages,
         },
       );
 
       const sentimentResult = this.sentimentResultRepository.create({
-        sentiment: response.data.label,
-        confidence: response.data.confidence,
+        agentId,
+        conversationId,
+        sentiment: response.data.overall_sentiment,
+        confidence: response.data.score,
         messages,
       });
-
+ 
       return await this.sentimentResultRepository.save(sentimentResult);
     } catch (error: unknown) {
+      console.error('FULL ERROR:', error);
+
       if (axios.isAxiosError(error)) {
+        console.error('AXIOS ERROR DATA:', error.response?.data);
+
         const apiMessage =
           typeof error.response?.data === 'string'
             ? error.response.data
-            : error.message;
+            : JSON.stringify(error.response?.data);
 
         throw new Error(`Failed to analyze conversation: ${apiMessage}`);
       }
 
-      throw new Error('Failed to analyze conversation');
+      throw new Error(
+        `Failed to analyze conversation: ${
+          (error as Error).message || 'Unknown error'
+        }`,
+      );
     }
   }
 }

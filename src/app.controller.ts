@@ -17,6 +17,12 @@ class ConversationMessageDto {
 }
 
 class AnalyzeRequestBodyDto {
+  @ApiProperty({ example: 'agent_1' })
+  agentId: string;
+
+  @ApiProperty({ example: 'conv_001' })
+  conversationId: string;
+
   @ApiProperty({
     type: [ConversationMessageDto],
     example: [
@@ -51,7 +57,14 @@ export class AppController {
     if (!Array.isArray(body?.messages)) {
       throw new BadRequestException('`messages` must be an array');
     }
+    if (!body?.agentId || !body?.conversationId) {
+      throw new BadRequestException('`agentId` and `conversationId` are required');
+    }
 
-    return this.appService.analyzeConversation(body.messages);
+    return this.appService.analyzeConversation(
+      body.agentId,
+      body.conversationId,
+      body.messages,
+    );
   }
 }
