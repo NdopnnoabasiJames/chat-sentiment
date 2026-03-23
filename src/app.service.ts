@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, BadGatewayException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
@@ -12,16 +12,15 @@ type ConversationMessage = {
 
 interface SentimentApiResponse {
   overall_sentiment: string;
-  score: number;
-  messages: {
-    text: string;
-    label: string;
-    confidence: number;
-  }[];
+  confidence: number;
+  analyzed_text: string;
+  used_messages: string[];
 }
 
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(SentimentResult)
@@ -39,6 +38,8 @@ export class AppService {
         'http://127.0.0.1:8000/predict',
       );
 
+      this.logger.debug(`[1/3] Calling FastAPI: POST ${fastApiPredictUrl}`);
+
       const response = await axios.post<SentimentApiResponse>(
         fastApiPredictUrl,
         {
@@ -48,33 +49,45 @@ export class AppService {
         },
       );
 
+      this.logger.debug(
+        `[2/3] FastAPI response: sentiment=${response.data.overall_sentiment}, confidence=${response.data.confidence}`,
+      );
+
       const sentimentResult = this.sentimentResultRepository.create({
         agentId,
         conversationId,
         sentiment: response.data.overall_sentiment,
-        confidence: response.data.score,
+        confidence: response.data.confidence,
         messages,
       });
- 
-      return await this.sentimentResultRepository.save(sentimentResult);
+
+      this.logger.debug(`[3/3] Saving result to database...`);
+      const saved = await this.sentimentResultRepository.save(sentimentResult);
+      this.logger.debug(`[3/3] Saved with id=${saved.id}`);
+
+      return saved;
     } catch (error: unknown) {
-      console.error('FULL ERROR:', error);
-
       if (axios.isAxiosError(error)) {
-        console.error('AXIOS ERROR DATA:', error.response?.data);
+        const status = error.response?.status;
+        const detail =
+          error.response?.data?.detail ||
+          error.response?.data?.message ||
+          error.message;
 
-        const apiMessage =
-          typeof error.response?.data === 'string'
-            ? error.response.data
-            : JSON.stringify(error.response?.data);
+        this.logger.error(`FastAPI call failed (${status ?? 'unreachable'}): ${detail}`);
 
-        throw new Error(`Failed to analyze conversation: ${apiMessage}`);
+        throw new BadGatewayException(
+          `There was a problem with the sentiment analysis service (${status ?? 'unreachable'}): ${detail}`,
+        );
       }
 
-      throw new Error(
-        `Failed to analyze conversation: ${
-          (error as Error).message || 'Unknown error'
-        }`,
+      this.logger.error(
+        `Unexpected error: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      throw new InternalServerErrorException(
+        'There was an unexpected problem processing your request. Please try again.',
       );
     }
   }
