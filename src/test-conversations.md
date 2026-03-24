@@ -42,7 +42,7 @@
   "agentId": "agent_1",
   "conversationId": "conv_004",
   "messages": [
-    { "role": "customer", "text": "My subscription is not active" },
+    { "role": "customer", "text": "My subscription is not active" }, 
     { "role": "agent", "text": "Wait" },
     { "role": "customer", "text": "It's been 20 minutes" },
     { "role": "agent", "text": "Still checking" },

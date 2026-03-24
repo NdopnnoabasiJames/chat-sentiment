@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
 import {
   ApiBody,
+  ApiParam,
   ApiOperation,
   ApiProperty,
   ApiResponse,
@@ -33,10 +34,44 @@ class AnalyzeRequestBodyDto {
   messages: ConversationMessageDto[];
 }
 
+class AgentAnalyticsResponseDto {
+  @ApiProperty({ example: 'agent_1' })
+  agentId: string;
+
+  @ApiProperty({ example: 12 })
+  totalConversations: number;
+
+  @ApiProperty({ example: 7 })
+  positive: number;
+
+  @ApiProperty({ example: 3 })
+  neutral: number;
+
+  @ApiProperty({ example: 2 })
+  negative: number;
+
+  @ApiProperty({ example: 0.8421 })
+  averageConfidence: number;
+}
+
+class AllAgentsAnalyticsResponseDto {
+  @ApiProperty({ example: 'agent_1' })
+  agentId: string;
+
+  @ApiProperty({ example: 20 })
+  totalConversations: number;
+
+  @ApiProperty({ example: 0.75 })
+  positiveRate: number;
+
+  @ApiProperty({ example: 0.1 })
+  negativeRate: number;
+}
+
 @ApiTags('sentiment')
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
   @ApiOperation({ summary: 'Analyze sentiment for a conversation' })
   @ApiBody({ type: AnalyzeRequestBodyDto })
@@ -66,5 +101,33 @@ export class AppController {
       body.conversationId,
       body.messages,
     );
+  }
+
+  @ApiOperation({ summary: 'Get sentiment analytics for an agent' })
+  @ApiParam({
+    name: 'agentId',
+    description: 'Agent identifier',
+    example: 'agent_1',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Aggregated sentiment metrics for the agent',
+    type: AgentAnalyticsResponseDto,
+  })
+  @Get('analytics/agent/:agentId')
+  async getAgentAnalytics(@Param('agentId') agentId: string) {
+    return this.appService.getAgentAnalytics(agentId);
+  }
+
+  @Get('analytics/agents')
+  @ApiOperation({ summary: 'Get analytics for all agents' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ranked analytics across all agents',
+    type: AllAgentsAnalyticsResponseDto,
+    isArray: true,
+  })
+  getAllAgentsAnalytics() {
+    return this.appService.getAllAgentsAnalytics();
   }
 }

@@ -25,7 +25,7 @@ export class AppService {
     private readonly configService: ConfigService,
     @InjectRepository(SentimentResult)
     private readonly sentimentResultRepository: Repository<SentimentResult>,
-  ) {}
+  ) { }
 
   async analyzeConversation(
     agentId: string,
@@ -90,5 +90,96 @@ export class AppService {
         'There was an unexpected problem processing your request. Please try again.',
       );
     }
+  }
+
+  async getAgentAnalytics(agentId: string) {
+    const results = await this.sentimentResultRepository.find({
+      where: { agentId },
+    });
+
+    const total = results.length;
+
+    if (total === 0) {
+      return {
+        agentId,
+        totalConversations: 0,
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        averageConfidence: 0,
+      };
+    }
+
+    let positive = 0;
+    let neutral = 0;
+    let negative = 0;
+    let confidenceSum = 0;
+
+    for (const r of results) {
+      if (r.sentiment === 'positive') positive++;
+      else if (r.sentiment === 'neutral') neutral++;
+      else if (r.sentiment === 'negative') negative++;
+
+      confidenceSum += r.confidence;
+    }
+
+    return {
+      agentId,
+      totalConversations: total,
+      positive,
+      neutral,
+      negative,
+      averageConfidence: Number((confidenceSum / total).toFixed(4)),
+    };
+  }
+
+  async getAllAgentsAnalytics() {
+    const results = await this.sentimentResultRepository.find();
+
+    const agentMap: Record<
+      string,
+      {
+        total: number;
+        positive: number;
+        negative: number;
+        neutral: number;
+      }
+    > = {};
+
+    for (const r of results) {
+      if (!agentMap[r.agentId]) {
+        agentMap[r.agentId] = {
+          total: 0,
+          positive: 0,
+          negative: 0,
+          neutral: 0,
+        };
+      }
+
+      const agent = agentMap[r.agentId];
+
+      agent.total++;
+
+      if (r.sentiment === 'positive') agent.positive++;
+      else if (r.sentiment === 'negative') agent.negative++;
+      else agent.neutral++;
+    }
+
+    const analytics = Object.entries(agentMap).map(([agentId, data]) => {
+      const positiveRate = data.positive / data.total;
+      const negativeRate = data.negative / data.total;
+
+      return {
+        agentId,
+        totalConversations: data.total,
+        positiveRate: Number(positiveRate.toFixed(2)),
+        negativeRate: Number(negativeRate.toFixed(2)),
+      };
+    });
+
+    // sort best → worst (by positive rate)
+    analytics.sort((a, b) => b.positiveRate - a.positiveRate);
+
+    return analytics;
   }
 }
